@@ -21,9 +21,6 @@ from sklearn.ensemble import RandomForestClassifier
 
 
 # Pandas DataFrame
-script_dir = os.path.dirname(__file__)
-rel_path = "2091/data.txt"
-abs_file_path = os.path.join(script_dir, rel_path)
 df_train = pd.read_csv(os.path.dirname(__file__) + '/../Data Files/train.csv')
 df_test = pd.read_csv(os.path.dirname(__file__) + '/../Data Files/test.csv')
 
@@ -68,6 +65,41 @@ df_test['Age*Class'] = df_test.AgeFill * df_test.Pclass
 df_train['FamilySize'] = df_train['SibSp'] + df_train['Parch']
 df_test['FamilySize'] = df_test['SibSp'] + df_test['Parch']
 
+# Extract title information from Name column
+# Get titles from Name column
+def get_title(name):
+    if '.' in name:
+        return name.split(',')[1].split('.')[0].strip()
+    else:
+        return 'Unknown'
+
+titles_list = df_train.Name.map(lambda x: get_title(x))
+# print(titles_list.value_counts())
+
+# Normalize the titles, returning 'Mr', 'Master', 'Miss' or 'Mrs'
+def replace_titles(x):
+    title = x['Title']
+    if title in ['Capt', 'Col', 'Major', 'Dr']:
+        return 'Officer'
+    elif title in ['Don', 'Jonkheer', 'Sir']:
+        return 'Sir'
+    elif title in ['Mme', 'Mrs', 'Ms']:
+        return 'Mrs'
+    elif title in ['the Countess', 'Lady', 'Dona']:
+        return 'Lady'
+    elif title in ['Mlle', 'Miss']:
+        return 'Miss'
+    elif title in ['Mr']:
+        return 'Mr'
+    else:
+        return title
+
+df_train['Title'] = df_train['Name'].map(lambda x: get_title(x))
+df_train['Title'] = df_train.apply(replace_titles, axis=1)
+
+df_test['Title'] = df_test['Name'].map(lambda x: get_title(x))
+df_test['Title'] = df_test.apply(replace_titles, axis=1)
+
 # Collect the test data's PassengerIds before dropping it
 test_ids = df_test['PassengerId'].values
 
@@ -78,13 +110,19 @@ df_train = df_train.drop(
 df_test = df_test.drop(['Name', 'Ticket', 'Parch', 'Cabin',
                         'Embarked', 'Age', 'PassengerId'], axis=1)
 
+df_train = pd.get_dummies(df_train)
+df_test = pd.get_dummies(df_test)
+
+# Because df_test lacks a 'Title_Sir' column
+df_test['Title_Sir'] = 0.0
+
 # From given train dataset split train and test
 X = df_train.iloc[:, 1:].values
 y = df_train.iloc[:, 0].values
 X_train, X_test, y_train, y_test = \
     train_test_split(X, y, test_size=0.30, random_state=1)
 
-# To calsulate the important features by RandomForestClassifier
+# # To calsulate the important features by RandomForestClassifier
 # forest = RandomForestClassifier(n_estimators=100)
 # forest = forest.fit(X, y)
 #
@@ -111,7 +149,11 @@ X_train, X_test, y_train, y_test = \
 # plt.show()
 
 pipe_lr = Pipeline([('scl', StandardScaler()),
-                    ("rf", RandomForestClassifier(n_estimators=100))])
+                    ("rf", RandomForestClassifier(random_state=10,
+                                                  warm_start=True,
+                                                  n_estimators=26,
+                                                  max_depth=6,
+                                                  max_features='sqrt'))])
 
 pipe_lr.fit(X_train, y_train)
 print('Test Accuracy: %.3f' % pipe_lr.score(X_test, y_test))
@@ -119,7 +161,7 @@ print('Test Accuracy: %.3f' % pipe_lr.score(X_test, y_test))
 test_data = df_test.values
 test_pred = pipe_lr.predict(test_data)
 
-predictions_file = open(os.path.dirname(__file__) + "/../submissions/RFModel-20160610.csv", 'w', newline='')
+predictions_file = open(os.path.dirname(__file__) + "/../submissions/RFModel-20160610-2.csv", 'w', newline='')
 open_file_object = csv.writer(predictions_file)
 open_file_object.writerow(["PassengerId", "Survived"])
 open_file_object.writerows(zip(test_ids, test_pred))
