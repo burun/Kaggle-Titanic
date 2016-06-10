@@ -21,9 +21,6 @@ from sklearn.ensemble import RandomForestClassifier
 
 
 # Pandas DataFrame
-script_dir = os.path.dirname(__file__)
-rel_path = "2091/data.txt"
-abs_file_path = os.path.join(script_dir, rel_path)
 df_train = pd.read_csv(os.path.dirname(__file__) + '/../Data Files/train.csv')
 df_test = pd.read_csv(os.path.dirname(__file__) + '/../Data Files/test.csv')
 
@@ -67,6 +64,41 @@ df_test['Age*Class'] = df_test.AgeFill * df_test.Pclass
 # Create "Family size" column
 df_train['FamilySize'] = df_train['SibSp'] + df_train['Parch']
 df_test['FamilySize'] = df_test['SibSp'] + df_test['Parch']
+
+# Extract title information from Name column
+# Get titles from Name column
+def get_title(name):
+    if '.' in name:
+        return name.split(',')[1].split('.')[0].strip()
+    else:
+        return 'Unknown'
+
+titles_list = df_train.Name.map(lambda x: get_title(x))
+# print(titles_list.value_counts())
+
+# Normalize the titles, returning 'Mr', 'Master', 'Miss' or 'Mrs'
+def replace_titles(x):
+    title = x['Title']
+    if title in ['Capt', 'Col', 'Major', 'Dr']:
+        return 'Officer'
+    elif title in ['Don', 'Jonkheer', 'Sir']:
+        return 'Sir'
+    elif title in ['Mme', 'Mrs', 'Ms']:
+        return 'Mrs'
+    elif title in ['the Countess', 'Lady', 'Dona']:
+        return 'Lady'
+    elif title in ['Mlle', 'Miss']:
+        return 'Miss'
+    elif title in ['Mr']:
+        return 'Mr'
+    else:
+        return title
+
+df_train['Title'] = df_train['Name'].map(lambda x: get_title(x))
+df_train['Title'] = df_train.apply(replace_titles, axis=1)
+
+df_test['Title'] = df_test['Name'].map(lambda x: get_title(x))
+df_test['Title'] = df_test.apply(replace_titles, axis=1)
 
 # Collect the test data's PassengerIds before dropping it
 test_ids = df_test['PassengerId'].values
